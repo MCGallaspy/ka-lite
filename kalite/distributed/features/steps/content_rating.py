@@ -176,7 +176,7 @@ def rate_id(context, id_, val=3):
             rating_el = [el for el in els if int(el.get_attribute("data-val")) == val].pop()
             rating_el.click()
             return True
-        except (NoSuchElementException, StaleElementReferenceException):
+        except (NoSuchElementException, StaleElementReferenceException, IndexError):
             return False
 
     WebDriverWait(context.browser, 10).until(rate_element)
