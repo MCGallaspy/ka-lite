@@ -171,12 +171,12 @@ def rate_id(context, id_, val=3):
 
     def rate_element(driver):
         try:
-            container = find_id_with_wait(context, id_)
+            container = find_id_with_wait(context, id_, wait_time=1)
             els = container.find_elements_by_class_name(STAR_RATING_OPTION_CLASS)
             rating_el = [el for el in els if int(el.get_attribute("data-val")) == val].pop()
             rating_el.click()
             return True
-        except (NoSuchElementException, StaleElementReferenceException, IndexError):
+        except (NoSuchElementException, StaleElementReferenceException, IndexError, TimeoutException):
             return False
 
     WebDriverWait(context.browser, 10).until(rate_element)
