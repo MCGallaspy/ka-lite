@@ -16,6 +16,9 @@ var RatingModels = require("rating/models");
 var RatingModel = RatingModels.RatingModel;
 var ContentRatingCollection = RatingModels.ContentRatingCollection;
 
+var ExerciseLogCollection = require("exercises/models").ExerciseLogCollection;
+var VideoLogCollection = require("video/models").VideoLogCollection;
+
 // Views
 
 var ContentAreaView = BaseView.extend({
@@ -59,11 +62,34 @@ var ContentAreaView = BaseView.extend({
     should_show_rating: function() {
         /*
         This function determines whether a rating should be shown for the content item.
-        returns: true or false
+        The condition is that the user is logged in, the content is available, and the user has interacted w/ the
+          content before.
+        returns: A jQuery.Promise object. Resolved immediately in some circumstances, otherwise after a request returns
+            The single argument passed to a callback is true or false.
         */
         var entry_available = (typeof this.model !== "undefined") && !!this.model.get("available");
         var logged_in = window.statusModel.has("user_id");
-        return logged_in && entry_available;
+        if( !(entry_available && logged_in) ) {
+            return $.when(false);  // $.when called like this returns a resolved Promise. See jQuery docs.
+        }
+
+        var collection_type;
+        if( this.model.get("kind") === "Video" ) {
+            collection_type = VideoLogCollection;
+        }
+        else if( this.model.get("kind") === "Exercise" ) {
+            collection_type = ExerciseLogCollection;
+        }
+        var collection = new collection_type(null, {
+            content_model: new Backbone.Model({id: this.model.get("id")})
+        });
+        return collection.fetch().then(
+            function(collection){
+                var has_interacted = collection.objects.length > 0;
+                return has_interacted;
+            },
+            function(){ return false; }
+        );
     },
 
     remove_rating_view: function() {
@@ -75,45 +101,47 @@ var ContentAreaView = BaseView.extend({
     },
 
     show_rating: function() {
-        // First, determine whether we should show the rating at all.
-        // If it should not be shown, be sure to remove the rating_view; subsequent logic depends on that.
-        if ( !this.should_show_rating() ) {
-            this.remove_rating_view();
-            return;
-        }
+        this.should_show_rating().then(_.bind(function(should_show) {
+            // First, determine whether we should show the rating at all.
+            // If it should not be shown, be sure to remove the rating_view; subsequent logic depends on that.
+            if( !should_show ) {
+                this.remove_rating_view();
+                return;
+            }
 
-        // Secondly, if the rating_view is previously deleted or never shown before at all, then define it.
-        if( typeof this.rating_view === "undefined" ) {
-            this.rating_view = this.add_subview(RatingView, {});
-            this.$("#rating-container-wrapper").append(this.rating_view.el);
-        }
+            // Secondly, if the rating_view is previously deleted or never shown before at all, then define it.
+            if( typeof this.rating_view === "undefined" ) {
+                this.rating_view = this.add_subview(RatingView, {});
+                this.$("#rating-container-wrapper").append(this.rating_view.el);
+            }
 
-        // Finally, handle the actual display logic
-        if( this.rating_view.model === null || this.rating_view.model.get("content_id") !== this.model.get("id") ) {
-            var self = this;
-            this.content_rating_collection.fetch().done(function(){
-                // Queue up a save on the model we're about to switch out, in case it hasn't been synced.
-                if (self.rating_view.model !== null && self.rating_view.model.hasChanged()) {
-                    self.rating_view.model.debounced_save();
-                }
-                if(self.content_rating_collection.models.length === 1) {
-                    self.rating_view.model = self.content_rating_collection.pop();
-                    self.rating_view.render();
-                } else if ( self.content_rating_collection.models.length === 0 ) {
-                    self.rating_view.model = new RatingModel({
-                            "user": window.statusModel.get("user_uri"),
-                            "content_kind": self.model.get("kind"),
-                            "content_id": self.model.get("id")
-                    });
-                    self.rating_view.render();
-                } else {
-                    messages.show_message("error", "Server Error: More than one rating found for this user and content item!", "too-many-ratings-msg");
-                    self.remove_rating_view();
-                }
-            }).error(function(){
-                console.log("content rating collection failed to fetch");
-            });
-        }
+            // Finally, handle the actual display logic
+            if( this.rating_view.model === null || this.rating_view.model.get("content_id") !== this.model.get("id") ) {
+                var self = this;
+                this.content_rating_collection.fetch().done(function(){
+                    // Queue up a save on the model we're about to switch out, in case it hasn't been synced.
+                    if (self.rating_view.model !== null && self.rating_view.model.hasChanged()) {
+                        self.rating_view.model.debounced_save();
+                    }
+                    if(self.content_rating_collection.models.length === 1) {
+                        self.rating_view.model = self.content_rating_collection.pop();
+                        self.rating_view.render();
+                    } else if ( self.content_rating_collection.models.length === 0 ) {
+                        self.rating_view.model = new RatingModel({
+                                "user": window.statusModel.get("user_uri"),
+                                "content_kind": self.model.get("kind"),
+                                "content_id": self.model.get("id")
+                        });
+                        self.rating_view.render();
+                    } else {
+                        messages.show_message("error", "Server Error: More than one rating found for this user and content item!", "too-many-ratings-msg");
+                        self.remove_rating_view();
+                    }
+                }).error(function(){
+                    console.log("content rating collection failed to fetch");
+                });
+            }
+        }, this));
     },
 
     close: function() {

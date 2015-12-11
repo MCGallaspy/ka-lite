@@ -130,6 +130,10 @@ var ContentLogCollection = Backbone.Collection.extend({
     model_id_key: "content_id",
 
     initialize: function(models, options) {
+        /*
+        * options.content_model is a Backbone.Model
+        * options.content_ids is an array of ids.
+        */
         options = typeof options !== "undefined" && options !== null ? options : {};
         this.content_model = options.content_model;
         this.content_ids = options.content_ids;
