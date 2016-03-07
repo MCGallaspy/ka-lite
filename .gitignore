@@ -1,0 +1,10 @@
+.project
+.pydevproject
+.DS_Store
+*.db
+*.sqlite*
+*.patch
+*.pid
+*.prof
+*.pyc
+*.pyo
